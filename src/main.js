@@ -12,6 +12,7 @@ const userLocations = {}; // { chatId: { latitude, longitude, address } }
 
 // Delivery fee
 const DELIVERY_FEE = 10000;
+const MAX_USERS = 200;
 
 // 🚫 Tugagan ovqatlar ro'yxati
 const outOfStock = new Set(); // Tugagan ovqatlar nomi
@@ -145,7 +146,7 @@ const menus = {
     shashlik: {
         text: "🥩 Shashlik turlari:",
         buttons: [
-            ["Mol jaz - 20 000", "Qiyma - 15 000"],
+            ["Mol jaz(mol, qo'y) - 20 000", "Qiyma - 15 000"],
             ["⬅️ Orqaga"]
         ],
     },
@@ -215,6 +216,27 @@ function isAdmin(userId) {
     return userId.toString() === process.env.ADMIN_ID;
 }
 
+// 📊 Foydalanuvchi limitini boshqarish
+function manageUserLimit(chatId) {
+    const userCount = Object.keys(userState).length;
+
+    // Agar limit oshsa, eng eski foydalanuvchini o'chirish
+    if (userCount >= MAX_USERS) {
+        const userIds = Object.keys(userState);
+        const oldestUserId = userIds[0]; // Eng birinchi qo'shilgan
+
+        // Eng eski foydalanuvchini o'chirish
+        delete userState[oldestUserId];
+        delete orders[oldestUserId];
+        delete awaitingQuantity[oldestUserId];
+        delete userContacts[oldestUserId];
+        delete userLocations[oldestUserId];
+        delete adminManagingStock[oldestUserId];
+
+        console.log(`🗑 Eng eski foydalanuvchi o'chirildi: ${oldestUserId}`);
+    }
+}
+
 function formatFoodName(text) {
     // "Lavash standart - 36 000" -> "Lavash standart"
     if (text.includes(" - ")) {
@@ -272,7 +294,7 @@ bot.start((ctx) => {
 👋 Salom ${ctx.from.first_name}! 
 
 🍽 BU BOT ORQALI SIZ:
-• 🥘 150+ dan ortiq taomlardan tanlashingiz
+• 🥘 30+ dan ortiq taomlardan tanlashingiz
 • 🛒 Oson va tez buyurtma berishingiz  
 • 📱 Kontakt va lokatsiyangizni ulashishingiz
 • 💳 Real vaqtda narxlarni ko'rishingiz
@@ -281,6 +303,8 @@ bot.start((ctx) => {
 💰 Dostavka: Atigi 10,000 so'm
 ⏰ Ish vaqti: 09:00 - 23:00 (har kuni)  
 🕐 Dostavka vaqti: 30-45 daqiqa
+
+🚨 ESLATMA: Dostavka xizmati faqat Toshkent viloyati, Chirchiq shahri uchun mavjud!
 
 📞 Buyurtma berish uchun telefon raqamingizni ulashing:`;
 
@@ -333,6 +357,8 @@ function showMainMenu(ctx) {
 bot.on('contact', (ctx) => {
     const chatId = ctx.chat.id;
     const contact = ctx.message.contact;
+
+    manageUserLimit(chatId);
 
     // Kontaktni saqlash
     userContacts[chatId] = {
@@ -515,7 +541,7 @@ bot.on("text", async (ctx) => {
             });
         }
 
-        const adminButtons = [
+        const adminButtons = [ // Kodning yarmi shu yerda
             ["📋 Tugagan ovqatlar ro'yxati", "🔍 Ovqat qidirish"],
             ["🔄 Yangilash", "⬅️ Admin panel"]
         ];
@@ -549,7 +575,24 @@ bot.on("text", async (ctx) => {
     }
 
     // Admin ovqat boshqaruvi
+    // Admin ovqat boshqaruvi
     if (adminManagingStock[chatId] === "searching" && isUserAdmin) {
+        // Agar admin panel tugmasini bosgan bo'lsa, qidiruv holatini bekor qilish
+        if (text === "⬅️ Admin panel") {
+            delete adminManagingStock[chatId];
+            userState[chatId] = "admin";
+            return ctx.reply(menus.admin.text, {
+                reply_markup: { keyboard: menus.admin.buttons, resize_keyboard: true },
+            });
+        }
+
+        // Agar tugagan ovqatlar ro'yxati tugmasini bosgan bo'lsa
+        if (text === "📋 Tugagan ovqatlar ro'yxati") {
+            delete adminManagingStock[chatId];
+            // Tugagan ovqatlar ro'yxatini ko'rsatish kodi shu yerda bo'ladi
+            // Bu qismni "📋 Tugagan ovqatlar ro'yxati" ishlov berish qismidan ko'chirib kelish kerak
+        }
+
         const foodName = text.trim();
         const allFoods = getAllFoodItems();
 
