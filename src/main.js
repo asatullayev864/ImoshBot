@@ -353,6 +353,19 @@ function showMainMenu(ctx) {
     });
 }
 
+function safeReply(ctx, state) {
+    let currentMenu = menus[state];
+    if (!currentMenu) {
+        console.error("⚠️ Notanish state:", state, "chatId:", ctx.chat.id);
+        userState[ctx.chat.id] = "main";
+        currentMenu = menus.main;
+    }
+
+    return ctx.reply(currentMenu.text, {
+        reply_markup: { keyboard: currentMenu.buttons, resize_keyboard: true }
+    });
+}
+
 // 📞 Kontakt qabul qilish
 bot.on('contact', (ctx) => {
     const chatId = ctx.chat.id;
@@ -389,13 +402,13 @@ bot.on('location', (ctx) => {
     };
 
     // Admin ga lokatsiya yuborish
-    if (process.env.ADMIN_ID) {
-        bot.telegram.sendLocation(process.env.ADMIN_ID, location.latitude, location.longitude);
-        bot.telegram.sendMessage(
-            process.env.ADMIN_ID,
-            `📍 Mijoz lokatsiyasi:\n👤 ${ctx.from.first_name}\n📞 ${userContacts[chatId]?.phone || 'N/A'}`
-        );
-    }
+    // if (process.env.ADMIN_ID) {
+    //     bot.telegram.sendLocation(process.env.ADMIN_ID, location.latitude, location.longitude);
+    //     bot.telegram.sendMessage(
+    //         process.env.ADMIN_ID,
+    //         `📍 Mijoz lokatsiyasi:\n👤 ${ctx.from.first_name}\n📞 ${userContacts[chatId]?.phone || 'N/A'}`
+    //     );
+    // }
 
     ctx.reply("✅ Lokatsiyangiz qabul qilindi!\n\n🛒 Endi buyurtmalaringizni tasdiqlashingiz mumkin.", {
         reply_markup: { remove_keyboard: true }
@@ -778,15 +791,23 @@ bot.on("text", async (ctx) => {
         orderSummary += `\n💳 UMUMIY: ${totalWithDelivery.toLocaleString()} so'm`;
 
         // Admin ga yuborish
+        // Admin ga yuborish
         if (process.env.ADMIN_ID) {
             try {
+                // Birinchi buyurtma ma'lumotlarini yuborish
                 await bot.telegram.sendMessage(process.env.ADMIN_ID, orderSummary);
-                // Lokatsiyani ham yuborish
+
+                // Keyin lokatsiyani yuborish
                 if (userLocations[chatId]) {
                     await bot.telegram.sendLocation(
                         process.env.ADMIN_ID,
                         userLocations[chatId].latitude,
                         userLocations[chatId].longitude
+                    );
+                    // Lokatsiya haqida qo'shimcha ma'lumot
+                    await bot.telegram.sendMessage(
+                        process.env.ADMIN_ID,
+                        `📍 Mijoz manzili:\n👤 ${ctx.from.first_name}\n📞 ${userContacts[chatId]?.phone || 'N/A'}`
                     );
                 }
             } catch (error) {
